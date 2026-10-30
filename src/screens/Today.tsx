@@ -42,7 +42,7 @@ export function Today({ state, settings, onStart, onResume, onFinishActive, onDi
       {selected === 0 && state.active ? (
         <ActiveSession state={state} onResume={onResume} onFinish={onFinishActive} onDiscard={onDiscard} onInfo={onInfo} />
       ) : day.status === 'rest' && selected > 0 ? (
-        <section className="title">
+        <section className="card title">
           <h1>Rest</h1>
           <p className="muted">Walk, sleep, eat protein.</p>
         </section>
@@ -82,37 +82,33 @@ function Plan({ state, settings, offset, now, isToday, note, place, onPlace, onS
 
   return (
     <>
-      <section className="title">
-        {note && (
-          <p className="note-line">
-            {note === 'Done today' && <Icon name="check" size={18} />} {note}
-            {nextDay !== null && <span className="muted">. Next: {relativeDayName(nextDay, now)}</span>}
-          </p>
-        )}
-        <h1>{workout.name}</h1>
-        <p className="muted">{workout.focus}</p>
-        <div className="stats">
-          <span><strong>{estimateMinutes(steps)}</strong> min</span>
-          <span className="stage" aria-label={`Stage ${stage} of ${MAX_STAGE}`}>
-            {Array.from({ length: MAX_STAGE }, (_, i) => <i key={i} className={i < stage ? 'on' : ''} />)}
-            Stage {stage}
-          </span>
+      <section className="card plan">
+        <div className="title">
+          {note && (
+            <p className="note-line">
+              {note === 'Done today' && <Icon name="check" size={18} />} {note}
+              {nextDay !== null && <span className="muted">. Next: {relativeDayName(nextDay, now)}</span>}
+            </p>
+          )}
+          <h1>{workout.name}</h1>
+          <p className="muted">{workout.focus}</p>
+          <div className="pills">
+            <span>{estimateMinutes(steps)} min</span>
+            <span>Stage {stage} of {MAX_STAGE}</span>
+          </div>
         </div>
+
+        <PlacePicker value={place} onChange={onPlace} />
+
+        {place && <StepList steps={steps} state={state} onInfo={onInfo} />}
       </section>
 
-      <PlacePicker value={place} onChange={onPlace} />
-
-      {place && (
-        <>
-          <StepList steps={steps} state={state} onInfo={onInfo} />
-          {isToday && (
-            <footer className="actions">
-              <button type="button" className="btn btn-primary btn-block btn-xl" onClick={() => onStart(place)}>
-                Start
-              </button>
-            </footer>
-          )}
-        </>
+      {place && isToday && (
+        <footer className="actions">
+          <button type="button" className="btn btn-primary btn-block btn-xl" onClick={() => onStart(place)}>
+            Start
+          </button>
+        </footer>
       )}
     </>
   )
@@ -156,14 +152,16 @@ function ActiveSession({ state, onResume, onFinish, onDiscard, onInfo }: {
   const startedDay = DAY_LONG[new Date(`${a.date}T00:00`).getDay()]
   return (
     <>
-      <section className="title">
-        <p className="muted">{startedToday ? 'Paused' : `Unfinished from ${startedDay}`}</p>
-        <h1>{workout?.name ?? 'Workout'}</h1>
-        <p className="muted">
-          {a.place === 'home' ? 'Home' : 'Gym'}, step {a.stepIndex + 1} of {a.steps.length}
-        </p>
+      <section className="card plan">
+        <div className="title">
+          <p className="muted">{startedToday ? 'Paused' : `Unfinished from ${startedDay}`}</p>
+          <h1>{workout?.name ?? 'Workout'}</h1>
+          <p className="muted">
+            {a.place === 'home' ? 'Home' : 'Gym'}, step {a.stepIndex + 1} of {a.steps.length}
+          </p>
+        </div>
+        <StepList steps={a.steps} state={state} current={a.stepIndex} onInfo={onInfo} />
       </section>
-      <StepList steps={a.steps} state={state} current={a.stepIndex} onInfo={onInfo} />
       <footer className="actions">
         <div className="row">
           <button type="button" className="btn btn-ghost" onClick={onFinish}>

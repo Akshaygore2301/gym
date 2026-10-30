@@ -1,7 +1,6 @@
 import { HOME_KIT, type HomeKitId } from '../data/equipment'
 import { DAY_SHORT, WEEK_ORDER } from '../lib/dates'
 import type { Level, Place } from '../lib/state'
-import { Icon } from './Icon'
 
 export function DaysPicker({ days, onChange }: { days: number[]; onChange: (days: number[]) => void }) {
   const toggle = (d: number) =>
@@ -76,7 +75,6 @@ export function PlacePicker({ value, onChange }: { value: Place | null; onChange
       {(['gym', 'home'] as const).map((p) => (
         <button key={p} type="button" className={`place ${value === p ? 'on' : ''}`} aria-pressed={value === p}
           onClick={() => onChange(p)}>
-          <Icon name={p} size={30} />
           {p === 'gym' ? 'Gym' : 'Home'}
         </button>
       ))}

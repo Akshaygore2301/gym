@@ -208,6 +208,8 @@ function StrengthStep({ step, state, update }: { step: Extract<Step, { type: 'st
     return <FeedbackPicker onPick={(fb) => update((s) => giveFeedback(s, fb, dateKey()))} />
   }
 
+  const target = def.kind === 'hold' ? `${load.seconds} sec`
+    : `${load.reps} reps` + (def.kind === 'weighted' && load.weight !== undefined ? `, ${formatWeight(def, load.weight)}` : '')
   const rest = 'rest' in def ? def.rest : 60
   const doneSet = () => {
     unlockAudio()
@@ -217,18 +219,15 @@ function StrengthStep({ step, state, update }: { step: Extract<Step, { type: 'st
 
   return (
     <div className="target">
-      <div className="dots" aria-label={`Set ${setIndex + 1} of ${step.sets}`}>
+      <ol className="sets" aria-label={`Set ${setIndex + 1} of ${step.sets}`}>
         {Array.from({ length: step.sets }, (_, i) => (
-          <span key={i} className={i < setIndex ? 'done' : i === setIndex ? 'now' : ''} />
+          <li key={i} className={i < setIndex ? 'done' : i === setIndex ? 'now' : ''}>
+            <span>Set {i + 1}</span>
+            {i === setIndex ? <strong>{target}</strong> : <span>{target}</span>}
+          </li>
         ))}
-      </div>
-      {def.kind === 'hold' ? (
-        <HoldTimer seconds={load.seconds!} onDone={doneSet} />
-      ) : (
-        <p className="big center">
-          {load.reps} <span className="unit">reps</span>
-        </p>
-      )}
+      </ol>
+      {def.kind === 'hold' && <HoldTimer seconds={load.seconds!} onDone={doneSet} />}
 
       {def.kind === 'weighted' && load.weight !== undefined && (
         <div className="center">
@@ -244,7 +243,7 @@ function StrengthStep({ step, state, update }: { step: Extract<Step, { type: 'st
 
       {def.kind !== 'hold' && (
         <button type="button" className="btn btn-primary btn-block btn-xl" onClick={doneSet}>
-          Done
+          Done with set {setIndex + 1}
         </button>
       )}
 

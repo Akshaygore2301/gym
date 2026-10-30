@@ -16,8 +16,8 @@ export default defineConfig({
         name: 'Gym',
         short_name: 'Gym',
         description: 'Tells you exactly what to do at the gym, step by step.',
-        theme_color: '#12161d',
-        background_color: '#12161d',
+        theme_color: '#ececee',
+        background_color: '#ececee',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
