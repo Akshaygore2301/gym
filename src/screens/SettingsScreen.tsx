@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import { EQUIPMENT_GROUPS, type EquipmentId } from '../data/equipment'
-import { DaysPicker, MinutesPicker } from '../components/Pickers'
-import { rotationDescription } from '../data/workouts'
+import { DaysPicker, KitPicker, LevelPicker } from '../components/Pickers'
+import { Icon } from '../components/Icon'
+import { splitName } from '../data/workouts'
 import { Stepper } from '../components/Stepper'
 import { EXERCISES } from '../data/exercises'
-import { setLoad } from '../lib/actions'
+import { saveSettings, setLoad } from '../lib/actions'
 import { dateKey } from '../lib/dates'
 import { INITIAL_STATE, parseState, type AppState, type Settings } from '../lib/state'
 
@@ -21,7 +22,7 @@ export function SettingsScreen({ state, settings, update, onBack }: Props) {
   const missing = settings.missing ?? []
   const toggleEquipment = (id: EquipmentId) =>
     setSettings({ missing: missing.includes(id) ? missing.filter((m) => m !== id) : [...missing, id] })
-  const setSettings = (patch: Partial<Settings>) => update((s) => ({ ...s, settings: { ...settings, ...patch } }))
+  const setSettings = (patch: Partial<Settings>) => update((s) => saveSettings(s, { ...settings, ...patch }))
 
   const exportBackup = () => {
     const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })
@@ -46,33 +47,36 @@ export function SettingsScreen({ state, settings, update, onBack }: Props) {
   )
 
   return (
-    <main className="screen">
+    <main className="screen settings">
       <header className="topbar">
         <button type="button" className="icon-btn" aria-label="Back" onClick={onBack}>
-          ←
+          <Icon name="back" />
         </button>
         <h1>Settings</h1>
         <span className="icon-btn" aria-hidden />
       </header>
 
       <section className="card">
-        <h2>Gym days</h2>
+        <h2>Level</h2>
+        <LevelPicker value={settings.level}
+          onChange={(level) => level !== settings.level && confirm('Change level? Your plan restarts at its first stage.') && setSettings({ level })} />
+      </section>
+
+      <section className="card">
+        <h2>Workout days</h2>
         <DaysPicker days={settings.days} onChange={(days) => days.length > 0 && setSettings({ days })} />
-        <p className="hint">{rotationDescription(settings.days.length)}</p>
+        <p className="muted">{splitName(settings.days.length)}</p>
       </section>
 
       <section className="card">
-        <h2>Session length</h2>
-        <MinutesPicker value={settings.minutes} onChange={(minutes) => setSettings({ minutes })} />
+        <h2>At home you have</h2>
+        <KitPicker value={settings.homeKit} onChange={(homeKit) => setSettings({ homeKit })} />
       </section>
 
       <section className="card">
-        <h2>Your gym's equipment</h2>
+        <h2>Gym equipment</h2>
         <p className="muted">
-          {missing.length === 0
-            ? 'Standard Cult gym: all machines available.'
-            : `Standard Cult gym, without ${missing.length} item${missing.length > 1 ? 's' : ''}.`}{' '}
-          If something isn't at your center, untick it and the plan picks an alternative.
+          {missing.length === 0 ? 'Everything' : `Missing ${missing.length}`}
         </p>
         {showEquipment &&
           EQUIPMENT_GROUPS.map((group) => (
@@ -92,14 +96,14 @@ export function SettingsScreen({ state, settings, update, onBack }: Props) {
             </div>
           ))}
         <button type="button" className="btn btn-ghost" onClick={() => setShowEquipment((v) => !v)}>
-          {showEquipment ? 'Done' : 'Edit equipment'}
+          {showEquipment ? 'Done' : 'Edit'}
         </button>
       </section>
 
       <section className="card">
         <h2>Your weights</h2>
         {weighted.length === 0 ? (
-          <p className="muted">Weights show up here after you pick them in your first workout.</p>
+          <p className="muted">None yet</p>
         ) : (
           <ul className="weights">
             {weighted.map((d) =>
@@ -123,10 +127,10 @@ export function SettingsScreen({ state, settings, update, onBack }: Props) {
 
       <section className="card">
         <h2>Backup</h2>
-        <p className="muted">Everything is stored only on this phone. Save a backup now and then.</p>
+        <p className="muted">Data lives only on this phone.</p>
         <div className="row">
           <button type="button" className="btn btn-ghost" onClick={exportBackup}>
-            Save backup
+            Save
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()}>
             Restore
@@ -138,15 +142,14 @@ export function SettingsScreen({ state, settings, update, onBack }: Props) {
 
       <section className="card">
         <h2>Start over</h2>
-        <p className="muted">Clears your progress, weights and settings.</p>
         <button type="button" className="btn btn-ghost danger"
           onClick={() => confirm('Delete all progress and start over?') && update(() => INITIAL_STATE)}>
-          Reset everything
+          Reset
         </button>
       </section>
 
       <p className="hint center">
-        Exercise photos from free-exercise-db (public domain). Sessions completed: {state.sessionsDone}
+        {state.sessionsDone} sessions. Photos: free-exercise-db
       </p>
     </main>
   )

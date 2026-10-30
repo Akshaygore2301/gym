@@ -1,13 +1,13 @@
 // Exercise library. Ids match free-exercise-db (public domain), which supplies
 // images, muscles and instructions. Run `npm run fetch-exercises` after adding one.
 
-import type { EquipmentId } from './equipment'
+import type { Need } from './equipment'
 
 type Base = {
   id: string
   name: string
   cue: string
-  needs: EquipmentId[] // all of these must be at the gym
+  needs: Need[] // all of these must be available
   swaps: string[] // alternatives, best first
 }
 
@@ -105,7 +105,7 @@ const defs: ExerciseDef[] = [
     name: 'Goblet squat',
     cue: 'Hold one dumbbell at your chest. Sit between your heels, chest up, heels down.',
     start: 7.5, step: 2.5, min: 2.5, reps: [8, 12], rest: 90,
-    swaps: ['Leg_Press', 'Hack_Squat', 'Smith_Machine_Squat'],
+    swaps: ['Leg_Press', 'Hack_Squat', 'Smith_Machine_Squat', 'Squats_-_With_Bands', 'Bodyweight_Squat'],
   },
   {
     kind: 'weighted',
@@ -123,7 +123,7 @@ const defs: ExerciseDef[] = [
     name: 'Dumbbell lunges',
     cue: 'Long step, back knee almost touches the floor. Reps are per leg.',
     start: 5, step: 2.5, min: 0, perHand: true, reps: [8, 12], rest: 90,
-    swaps: ['Leg_Press', 'Goblet_Squat'],
+    swaps: ['Leg_Press', 'Goblet_Squat', 'Bodyweight_Walking_Lunge'],
   },
   {
     kind: 'weighted',
@@ -132,7 +132,7 @@ const defs: ExerciseDef[] = [
     name: 'Dumbbell Romanian deadlift',
     cue: 'Soft knees, push hips back, keep the back flat. Stop when you feel the hamstrings stretch.',
     start: 7.5, step: 2.5, min: 2.5, perHand: true, reps: [8, 12], rest: 90,
-    swaps: ['Seated_Leg_Curl', 'Butt_Lift_Bridge'],
+    swaps: ['Seated_Leg_Curl', 'Hip_Extension_with_Bands', 'Butt_Lift_Bridge'],
   },
   {
     kind: 'weighted',
@@ -229,9 +229,9 @@ const defs: ExerciseDef[] = [
   {
     kind: 'bodyweight',
     id: 'Incline_Push-Up',
-    needs: ['bench'],
+    needs: [],
     name: 'Incline push-ups',
-    cue: 'Hands on a bench or bar. Body straight, chest to the edge.',
+    cue: 'Hands on a bench, table or bed. Body straight, chest to the edge.',
     reps: [8, 15], rest: 60,
     swaps: ['Pushups', 'Leverage_Chest_Press'],
   },
@@ -260,7 +260,7 @@ const defs: ExerciseDef[] = [
     name: 'Lateral raise',
     cue: 'Light weight. Raise to shoulder height with soft elbows, lower slowly.',
     start: 3, step: 1, min: 1, perHand: true, reps: [10, 15], rest: 60,
-    swaps: ['Cable_Seated_Lateral_Raise'],
+    swaps: ['Cable_Seated_Lateral_Raise', 'Lateral_Raise_-_With_Bands', 'Push_Up_to_Side_Plank'],
   },
   {
     kind: 'weighted',
@@ -537,6 +537,179 @@ const defs: ExerciseDef[] = [
     cue: 'Sit tall, elbows tucked in. Press the handles down until arms are straight.',
     start: 15, step: 5, min: 5, reps: [10, 15], rest: 60,
     swaps: ['Triceps_Pushdown_-_Rope_Attachment', 'Machine_Triceps_Extension'],
+  },
+
+  // Home
+  {
+    kind: 'cardio',
+    id: 'Step-up_with_Knee_Raise',
+    needs: [],
+    name: 'Step-ups',
+    cue: 'Use a stair or sturdy step. Step up, drive the other knee high, step down. Switch legs.',
+    settings: (stage) => [stage < 2 ? 'Easy pace' : 'Steady pace'],
+    swaps: ['Star_Jump', 'Mountain_Climbers'],
+  },
+  {
+    kind: 'cardio',
+    id: 'Star_Jump',
+    needs: [],
+    name: 'Jumping jacks',
+    cue: 'Jump feet wide while raising arms overhead, jump back. Land softly.',
+    settings: (stage) => [`${Math.min(20 + stage * 5, 45)}s fast`, `${Math.max(40 - stage * 5, 15)}s easy`],
+    swaps: ['Mountain_Climbers', 'Step-up_with_Knee_Raise'],
+  },
+  {
+    kind: 'cardio',
+    id: 'Mountain_Climbers',
+    needs: [],
+    name: 'Mountain climbers',
+    cue: 'Hands under shoulders, body straight. Drive knees to chest one after the other.',
+    settings: (stage) => [`${Math.min(20 + stage * 5, 45)}s fast`, `${Math.max(40 - stage * 5, 15)}s easy`],
+    swaps: ['Star_Jump', 'Step-up_with_Knee_Raise'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Bodyweight_Squat',
+    needs: [],
+    name: 'Squat',
+    cue: 'Feet shoulder-width, sit back and down, chest up, heels down.',
+    reps: [12, 20], rest: 60,
+    swaps: ['Squats_-_With_Bands', 'Goblet_Squat'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Freehand_Jump_Squat',
+    needs: [],
+    name: 'Jump squat',
+    cue: 'Squat down, jump up explosively, land softly and go straight into the next rep.',
+    reps: [8, 15], rest: 60,
+    swaps: ['Bodyweight_Squat'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Squats_-_With_Bands',
+    needs: ['bands'],
+    name: 'Band squat',
+    cue: 'Stand on the band, handles at your shoulders. Sit back and down, push up through your heels.',
+    reps: [10, 15], rest: 60,
+    swaps: ['Bodyweight_Squat'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Bodyweight_Walking_Lunge',
+    needs: [],
+    name: 'Lunges',
+    cue: 'Long step, back knee almost touches the floor. Reps are per leg.',
+    reps: [8, 15], rest: 60,
+    swaps: ['Bodyweight_Squat'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Single_Leg_Glute_Bridge',
+    needs: [],
+    name: 'Single-leg glute bridge',
+    cue: 'One foot on the floor, other leg up. Push hips up, squeeze 1 second. Reps are per leg.',
+    reps: [8, 15], rest: 45,
+    swaps: ['Butt_Lift_Bridge'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Hip_Extension_with_Bands',
+    needs: ['bands'],
+    name: 'Band kickback',
+    cue: 'Band around your foot, hold something steady. Push the leg straight back, squeeze the glute. Reps are per leg.',
+    reps: [12, 20], rest: 45,
+    swaps: ['Butt_Lift_Bridge'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Push-Ups_With_Feet_Elevated',
+    needs: [],
+    name: 'Feet-up push-ups',
+    cue: 'Feet on a chair or bed, hands on the floor. Body straight, chest to the floor.',
+    reps: [6, 15], rest: 60,
+    swaps: ['Pushups'],
+  },
+  {
+    kind: 'weighted',
+    id: 'Bent_Over_Two-Dumbbell_Row',
+    needs: ['dumbbells'],
+    name: 'Bent-over dumbbell row',
+    cue: 'Hinge forward, back flat. Pull both dumbbells to your hips, squeeze your back.',
+    start: 5, step: 2.5, min: 2.5, perHand: true, reps: [8, 12], rest: 60,
+    swaps: ['Back_Flyes_-_With_Bands', 'Superman'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Back_Flyes_-_With_Bands',
+    needs: ['bands'],
+    name: 'Band row',
+    cue: 'Band around something steady at chest height. Pull to your belly, squeeze your shoulder blades.',
+    reps: [10, 15], rest: 60,
+    swaps: ['Superman'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Superman',
+    needs: [],
+    name: 'Superman',
+    cue: 'Lie face down. Lift arms, chest and legs off the floor, hold 2 seconds, lower.',
+    reps: [10, 15], rest: 45,
+    swaps: ['Back_Flyes_-_With_Bands'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Lateral_Raise_-_With_Bands',
+    needs: ['bands'],
+    name: 'Band lateral raise',
+    cue: 'Stand on the band. Raise arms to shoulder height with soft elbows, lower slowly.',
+    reps: [10, 15], rest: 45,
+    swaps: ['Push_Up_to_Side_Plank'],
+  },
+  {
+    kind: 'weighted',
+    id: 'Standing_Dumbbell_Press',
+    needs: ['dumbbells'],
+    name: 'Standing dumbbell press',
+    cue: 'Brace your abs. Press from ear height to overhead, no leaning back.',
+    start: 4, step: 1, min: 1, perHand: true, reps: [8, 12], rest: 60,
+    swaps: ['Shoulder_Press_-_With_Bands', 'Push_Up_to_Side_Plank'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Shoulder_Press_-_With_Bands',
+    needs: ['bands'],
+    name: 'Band shoulder press',
+    cue: 'Stand on the band, handles at your shoulders. Press overhead, lower slowly.',
+    reps: [10, 15], rest: 45,
+    swaps: ['Push_Up_to_Side_Plank'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Push_Up_to_Side_Plank',
+    needs: [],
+    name: 'Push-up to side plank',
+    cue: 'Do a push-up, then rotate into a side plank with one arm up. Alternate sides.',
+    reps: [6, 12], rest: 60,
+    swaps: ['Pushups'],
+  },
+  {
+    kind: 'bodyweight',
+    id: 'Bench_Dips',
+    needs: [],
+    name: 'Chair dips',
+    cue: 'Hands on a sturdy chair behind you. Bend elbows to 90°, push back up. Keep hips close.',
+    reps: [8, 15], rest: 60,
+    swaps: ['Pushups'],
+  },
+  {
+    kind: 'hold',
+    id: 'Side_Bridge',
+    needs: [],
+    name: 'Side plank',
+    cue: 'Elbow under shoulder, body in a straight line. Time is per side.',
+    seconds: [15, 45], rest: 30,
+    swaps: ['Plank'],
   },
 
   // Cool-down stretches

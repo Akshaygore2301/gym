@@ -42,8 +42,8 @@ export default function App() {
       <Today
         state={state}
         settings={settings}
-        onStart={() => {
-          update((s) => startSession(s, dateKey()))
+        onStart={(place) => {
+          update((s) => startSession(s, dateKey(), place))
           setView('run')
         }}
         onResume={() => setView('run')}

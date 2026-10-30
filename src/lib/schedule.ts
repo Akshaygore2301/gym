@@ -1,7 +1,7 @@
 import { rotationFor, type Workout } from '../data/workouts'
 import { dateKey } from './dates'
-import { buildSteps } from './plan'
-import type { AppState, Settings, Step } from './state'
+import { buildSteps, progressOn } from './plan'
+import type { AppState, Place, Settings, Step } from './state'
 
 export type PlannedDay = {
   date: Date
@@ -27,9 +27,10 @@ export function upcomingDays(state: AppState, settings: Settings, from: Date, co
 export type SessionPreview = { workout: Workout; steps: Step[]; number: number }
 
 // What a session `offset` sessions from now will look like, using current weights.
-export function previewSession(state: AppState, settings: Settings, offset: number): SessionPreview {
+export function previewSession(state: AppState, settings: Settings, offset: number, place: Place = 'gym'): SessionPreview {
   const sessionsDone = state.sessionsDone + offset
+  const progress = progressOn(state, dateKey()) + offset
   const rotation = rotationFor(settings.days.length)
   const workout = rotation[sessionsDone % rotation.length]
-  return { workout, steps: buildSteps(workout, { ...state, sessionsDone }, settings), number: sessionsDone + 1 }
+  return { workout, steps: buildSteps(workout, { ...state, sessionsDone, progress }, settings, place), number: sessionsDone + 1 }
 }

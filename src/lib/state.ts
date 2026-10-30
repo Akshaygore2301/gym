@@ -1,16 +1,18 @@
-import type { EquipmentId } from '../data/equipment'
+import type { EquipmentId, HomeKitId } from '../data/equipment'
 
-export type Minutes = 45 | 60 | 75
+export type Level = 'beginner' | 'intermediate' | 'advanced'
+export type Place = 'gym' | 'home'
 export type Feedback = 'hard' | 'right' | 'easy'
 
 export type Settings = {
   days: number[] // 0 = Sunday ... 6 = Saturday, like Date.getDay()
-  minutes: Minutes
+  level: Level
+  homeKit: HomeKitId[]
   missing?: EquipmentId[] // equipment this gym doesn't have; absent means a full Cult gym
 }
 
 // `unavailable` on a step is the planned exercise that was replaced because its
-// equipment is missing at this gym.
+// equipment is missing here.
 
 // Current target for one exercise. Which fields are used depends on the exercise kind.
 export type Load = { weight?: number; reps?: number; seconds?: number }
@@ -23,6 +25,7 @@ export type Step =
 export type ActiveSession = {
   date: string
   workoutKey: string
+  place: Place
   steps: Step[]
   stepIndex: number
   setIndex: number
@@ -32,6 +35,9 @@ export type AppState = {
   version: 1
   settings: Settings | null
   sessionsDone: number
+  // Position on the difficulty ladder, in sessions. The level sets where it starts,
+  // each finished session adds one and a long break steps back.
+  progress: number
   lastDone: string | null
   loads: Record<string, Load>
   swaps: Record<string, string> // permanent swaps: planned exercise id -> replacement id
@@ -42,6 +48,7 @@ export const INITIAL_STATE: AppState = {
   version: 1,
   settings: null,
   sessionsDone: 0,
+  progress: 0,
   lastDone: null,
   loads: {},
   swaps: {},
@@ -70,5 +77,10 @@ export function saveState(state: AppState) {
 export function parseState(raw: string): AppState {
   const data = JSON.parse(raw)
   if (data?.version !== 1) throw new Error('Not a backup from this app')
-  return { ...INITIAL_STATE, ...data }
+  const state: AppState = { ...INITIAL_STATE, ...data }
+  // Older versions had no levels, home workouts or ladder.
+  if (state.settings && !state.settings.level) state.settings = { ...state.settings, level: 'beginner', homeKit: [] }
+  if (state.active && !state.active.place) state.active = { ...state.active, place: 'gym' }
+  if (data.progress === undefined) state.progress = state.sessionsDone
+  return state
 }

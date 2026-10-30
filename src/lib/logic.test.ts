@@ -6,16 +6,16 @@ import { completeSet, giveFeedback, nextStep, startSession, swapCurrent } from '
 import { nextGymDay } from './dates'
 import { previewSession, upcomingDays } from './schedule'
 import { buildSteps, nextWorkout, resolveAvailable } from './plan'
-import { EQUIPMENT_NAMES } from '../data/equipment'
+import { ALL_NEEDS } from '../data/equipment'
 import { applyFeedback } from './progression'
-import { INITIAL_STATE, type AppState } from './state'
+import { INITIAL_STATE, type AppState, type Settings } from './state'
 
 const legPress = EXERCISES.Leg_Press // reps 8-12, step 5
 const plank = EXERCISES.Plank // 20-60s
 
 const withSettings = (patch: Partial<AppState> = {}): AppState => ({
   ...INITIAL_STATE,
-  settings: { days: [1, 3, 5], minutes: 60 },
+  settings: { days: [1, 3, 5], level: 'beginner', homeKit: [] },
   ...patch,
 })
 
@@ -60,32 +60,16 @@ describe('plan', () => {
   })
 
   it('orders warm-up, strength, finisher cardio, then stretches', () => {
-    const s = withSettings()
-    const types = buildSteps(WORKOUTS.A, s, s.settings!).map((x) => (x.type === 'cardio' ? x.role : x.type))
+    const s = withSettings({ progress: 18 })
+    const types = buildSteps(WORKOUTS.A, s, s.settings!, 'gym').map((x) => (x.type === 'cardio' ? x.role : x.type))
     expect(types).toEqual([
       'warmup', ...Array(6).fill('strength'), 'finisher', ...Array(5).fill('stretch'),
     ])
   })
 
-  it('drops optional exercises and stretches for 45 minute sessions', () => {
-    const s = withSettings({ settings: { days: [1], minutes: 45 } })
-    const steps = buildSteps(WORKOUTS.A, s, s.settings!)
-    expect(steps.filter((x) => x.type === 'strength')).toHaveLength(5)
-    expect(steps.filter((x) => x.type === 'stretch')).toHaveLength(4)
-  })
-
-  it('uses 2 sets at first, then 3', () => {
-    const sets = (n: number) => {
-      const s = withSettings({ sessionsDone: n })
-      return buildSteps(WORKOUTS.A, s, s.settings!).find((x) => x.type === 'strength')!
-    }
-    expect(sets(0)).toMatchObject({ sets: 2 })
-    expect(sets(6)).toMatchObject({ sets: 3 })
-  })
-
-  it('upgrades machines after enough sessions and applies saved swaps', () => {
-    const s = withSettings({ sessionsDone: 18, swaps: { Leg_Press: 'Goblet_Squat' } })
-    const ids = buildSteps(WORKOUTS.A, s, s.settings!).map((x) => x.exerciseId)
+  it('uses harder versions in stage 4 and applies saved swaps', () => {
+    const s = withSettings({ progress: 18, swaps: { Leg_Press: 'Goblet_Squat' } })
+    const ids = buildSteps(WORKOUTS.A, s, s.settings!, 'gym').map((x) => x.exerciseId)
     expect(ids).toContain('Smith_Machine_Bench_Press')
     expect(ids).toContain('Goblet_Squat')
     expect(ids).not.toContain('Leg_Press')
@@ -94,7 +78,7 @@ describe('plan', () => {
 
 describe('session flow', () => {
   it('runs sets, feedback and finishes the session', () => {
-    let s = startSession(withSettings(), '2026-10-06')
+    let s = startSession(withSettings(), '2026-10-06', 'gym')
     const steps = s.active!.steps
     for (const step of steps) {
       if (step.type !== 'strength') {
@@ -107,11 +91,11 @@ describe('session flow', () => {
     expect(s.active).toBeNull()
     expect(s.sessionsDone).toBe(1)
     expect(s.lastDone).toBe('2026-10-06')
-    expect(s.loads.Plank).toEqual({ seconds: 25 })
+    expect(s.loads.Leg_Press).toEqual({ weight: 20, reps: 9 })
   })
 
   it('remembers a swap only when asked', () => {
-    let s = startSession(withSettings(), '2026-10-06')
+    let s = startSession(withSettings(), '2026-10-06', 'gym')
     s = { ...s, active: { ...s.active!, stepIndex: 1 } } // Leg press
     expect(swapCurrent(s, 'Goblet_Squat', false).swaps).toEqual({})
     const kept = swapCurrent(s, 'Goblet_Squat', true)
@@ -128,7 +112,9 @@ describe('data', () => {
       for (const swap of def.swaps) expect(EXERCISES, `${def.id} -> ${swap}`).toHaveProperty(swap)
     }
     for (const w of Object.values(WORKOUTS)) {
-      for (const slot of w.slots) expect(EXERCISES).toHaveProperty(slot.id)
+      for (const slot of [...w.slots, ...w.home]) {
+        for (const id of [slot.id, slot.easy, slot.hard]) if (id) expect(EXERCISES).toHaveProperty(id)
+      }
       for (const slot of w.stretches) expect(EXERCISES[slot.id]?.kind, slot.id).toBe('stretch')
     }
   })
@@ -145,7 +131,7 @@ describe('dates', () => {
 
 describe('week schedule', () => {
   const tuesday = new Date('2026-10-06T10:00')
-  const settings = { days: [2, 4, 6], minutes: 60 as const } // Tue, Thu, Sat
+  const settings: Settings = { days: [2, 4, 6], level: 'beginner', homeKit: [] } // Tue, Thu, Sat
   const summary = (s: AppState) =>
     upcomingDays(s, settings, tuesday).map((d) =>
       d.offset === undefined ? d.status : previewSession(s, settings, d.offset).workout.key,
@@ -161,12 +147,12 @@ describe('week schedule', () => {
   })
 
   it('skips the in-progress workout', () => {
-    const s = startSession(withSettings({ settings }), '2026-10-06')
+    const s = startSession(withSettings({ settings }), '2026-10-06', 'gym')
     expect(summary(s)).toEqual(['active', 'rest', 'B', 'rest', 'C', 'rest', 'rest'])
   })
 
   it('previews future sessions with their set count', () => {
-    const s = withSettings({ settings, sessionsDone: 5 })
+    const s = withSettings({ settings, sessionsDone: 11, progress: 11 })
     const later = previewSession(s, settings, 1).steps.find((x) => x.type === 'strength')!
     expect(later).toMatchObject({ sets: 3 })
   })
@@ -184,17 +170,17 @@ describe('gym equipment', () => {
   })
 
   it('marks replaced steps in the plan, including cardio', () => {
-    const s = withSettings({ settings: { days: [1, 3, 5], minutes: 60, missing: ['treadmill', 'leg-press'] } })
-    const steps = buildSteps(WORKOUTS.A, s, s.settings!)
+    const s = withSettings({ settings: { days: [1, 3, 5], level: 'beginner', homeKit: [], missing: ['treadmill', 'leg-press'] } })
+    const steps = buildSteps(WORKOUTS.A, s, s.settings!, 'gym')
     expect(steps[0]).toMatchObject({ exerciseId: 'Elliptical_Trainer', unavailable: 'Walking_Treadmill' })
     expect(steps[1]).toMatchObject({ exerciseId: 'Hack_Squat', unavailable: 'Leg_Press', baseId: 'Leg_Press' })
     expect(steps[2]).not.toHaveProperty('unavailable')
   })
 
-  it('adds the stairmill to finishers after a few weeks', () => {
+  it('adds the stairmill to finishers from stage 3', () => {
     const finisher = (n: number) => {
-      const s = withSettings({ sessionsDone: n })
-      return buildSteps(WORKOUTS.A, s, s.settings!).find((x) => x.type === 'cardio' && x.role === 'finisher')!
+      const s = withSettings({ sessionsDone: n, progress: n })
+      return buildSteps(WORKOUTS.A, s, s.settings!, 'gym').find((x) => x.type === 'cardio' && x.role === 'finisher')!
     }
     expect(finisher(3).exerciseId).not.toBe('Step_Mill')
     expect(finisher(15).exerciseId).toBe('Step_Mill') // 15 % 4 === 3
@@ -202,7 +188,7 @@ describe('gym equipment', () => {
 
   it('only uses known equipment', () => {
     for (const def of Object.values(EXERCISES)) {
-      for (const n of def.needs) expect(EQUIPMENT_NAMES, `${def.id} needs ${n}`).toHaveProperty(n)
+      for (const n of def.needs) expect(ALL_NEEDS, `${def.id} needs ${n}`).toContain(n)
     }
   })
 })

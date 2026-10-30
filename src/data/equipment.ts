@@ -55,3 +55,16 @@ export type EquipmentId = (typeof EQUIPMENT_GROUPS)[number]['items'][number]['id
 export const EQUIPMENT_NAMES: Record<EquipmentId, string> = Object.fromEntries(
   EQUIPMENT_GROUPS.flatMap((g) => g.items.map((i) => [i.id, i.name])),
 ) as Record<EquipmentId, string>
+
+// What people may have at home. Bands are never assumed at the gym.
+export const HOME_KIT = [
+  { id: 'dumbbells', name: 'Dumbbells' },
+  { id: 'bands', name: 'Bands' },
+] as const
+
+export type HomeKitId = (typeof HOME_KIT)[number]['id']
+
+// Anything an exercise can need.
+export type Need = EquipmentId | HomeKitId
+
+export const ALL_NEEDS: Need[] = [...(Object.keys(EQUIPMENT_NAMES) as EquipmentId[]), 'bands']

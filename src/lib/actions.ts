@@ -1,21 +1,25 @@
 // Pure state transitions. The UI calls these through setState(fn).
 import { applyFeedback } from './progression'
-import { buildSteps, exercise, nextWorkout } from './plan'
-import type { AppState, Feedback, Load, Settings } from './state'
+import { LEVEL_START, buildSteps, exercise, nextWorkout, progressOn } from './plan'
+import type { AppState, Feedback, Load, Place, Settings } from './state'
 
+// Picking a level (first time or a change) moves you to its start on the ladder.
 export function saveSettings(state: AppState, settings: Settings): AppState {
-  return { ...state, settings }
+  const progress = settings.level === state.settings?.level ? state.progress : LEVEL_START[settings.level]
+  return { ...state, settings, progress }
 }
 
-export function startSession(state: AppState, today: string): AppState {
+export function startSession(state: AppState, today: string, place: Place): AppState {
   if (!state.settings) return state
   const workout = nextWorkout(state, state.settings)
+  const next = { ...state, progress: progressOn(state, today) }
   return {
-    ...state,
+    ...next,
     active: {
       date: today,
       workoutKey: workout.key,
-      steps: buildSteps(workout, state, state.settings),
+      place,
+      steps: buildSteps(workout, next, state.settings, place),
       stepIndex: 0,
       setIndex: 0,
     },
@@ -24,7 +28,7 @@ export function startSession(state: AppState, today: string): AppState {
 
 export function finishSession(state: AppState, today: string): AppState {
   if (!state.active) return state
-  return { ...state, active: null, sessionsDone: state.sessionsDone + 1, lastDone: today }
+  return { ...state, active: null, sessionsDone: state.sessionsDone + 1, progress: state.progress + 1, lastDone: today }
 }
 
 export function discardSession(state: AppState): AppState {

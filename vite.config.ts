@@ -9,15 +9,15 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         // Cache exercise photos too, so the app works with no signal at the gym.
-        globPatterns: ['**/*.{js,css,html,svg,png,jpg}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,woff2}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
       manifest: {
         name: 'Gym',
         short_name: 'Gym',
         description: 'Tells you exactly what to do at the gym, step by step.',
-        theme_color: '#0f1113',
-        background_color: '#0f1113',
+        theme_color: '#12161d',
+        background_color: '#12161d',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

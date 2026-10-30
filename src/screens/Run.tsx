@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { ExerciseAnim } from '../components/ExerciseAnim'
+import { Icon } from '../components/Icon'
 import { Sheet } from '../components/Sheet'
 import { Stepper } from '../components/Stepper'
 import { WORKOUTS } from '../data/workouts'
 import { completeSet, giveFeedback, nextStep, setLoad, swapCurrent } from '../lib/actions'
 import { dateKey } from '../lib/dates'
 import { alertDone, formatClock, unlockAudio, useCountdown, useWakeLock } from '../lib/device'
-import type { EquipmentId } from '../data/equipment'
-import { cardioStage, exercise, isAvailable } from '../lib/plan'
+import type { Need } from '../data/equipment'
+import { cardioStage, exercise, isAvailable, missingAt } from '../lib/plan'
 import { currentLoad, formatWeight } from '../lib/progression'
 import type { AppState, Feedback, Step } from '../lib/state'
 
@@ -30,15 +31,12 @@ export function Run({ state, update, onPause, onInfo }: Props) {
     <main className="screen run">
       <header className="run-head">
         <button type="button" className="icon-btn" aria-label="Pause workout" onClick={onPause}>
-          ✕
+          <Icon name="close" />
         </button>
-        <div className="run-title">
-          <strong>{workout?.name}</strong>
-          <span className="muted small">
-            Step {a.stepIndex + 1} of {a.steps.length}
-          </span>
-        </div>
-        <span className="icon-btn" aria-hidden />
+        <span className="muted">{workout?.name}</span>
+        <span className="run-count">
+          {a.stepIndex + 1}<span className="muted">/{a.steps.length}</span>
+        </span>
       </header>
       <div className="progress">
         <div style={{ width: `${(a.stepIndex / a.steps.length) * 100}%` }} />
@@ -54,7 +52,7 @@ function StepView({ step, state, update, onInfo }: { step: Step; state: AppState
   const def = exercise(step.exerciseId)
   const [swapOpen, setSwapOpen] = useState(false)
   const today = dateKey()
-  const missing = state.settings?.missing ?? []
+  const missing = state.settings ? missingAt(state.active!.place, state.settings) : []
   const options = swapOptions(step, missing)
 
   return (
@@ -66,20 +64,19 @@ function StepView({ step, state, update, onInfo }: { step: Step; state: AppState
       <section className="run-body">
         <h1 className="ex-name">{def.name}</h1>
         {'unavailable' in step && step.unavailable && (
-          <p className="note">Replaces {exercise(step.unavailable).name.toLowerCase()}, which your gym doesn't have.</p>
+          <p className="muted small">Instead of {exercise(step.unavailable).name.toLowerCase()}</p>
         )}
-        <p className="cue">{def.cue}</p>
-        <div className="row links">
-          <button type="button" className="link" onClick={() => onInfo(def.id)}>
-            How to do it
+        <div className="tools">
+          <button type="button" className="tool" onClick={() => onInfo(def.id)}>
+            <Icon name="info" size={18} /> How
           </button>
           {options.length > 0 && (
-            <button type="button" className="link" onClick={() => setSwapOpen(true)}>
-              Machine busy? Swap
+            <button type="button" className="tool" onClick={() => setSwapOpen(true)}>
+              <Icon name="swap" size={18} /> Swap
             </button>
           )}
-          <button type="button" className="link" onClick={() => update((s) => nextStep(s, today))}>
-            Skip
+          <button type="button" className="tool" onClick={() => update((s) => nextStep(s, today))}>
+            <Icon name="skip" size={18} /> Skip
           </button>
         </div>
 
@@ -102,7 +99,7 @@ function StepView({ step, state, update, onInfo }: { step: Step; state: AppState
 
 function CardioStep({ step, state, update }: { step: Extract<Step, { type: 'cardio' }>; state: AppState; update: Update }) {
   const def = exercise(step.exerciseId)
-  const settings = def.kind === 'cardio' ? def.settings(cardioStage(state.sessionsDone)) : []
+  const settings = def.kind === 'cardio' ? def.settings(cardioStage(state.progress)) : []
   const [endsAt, setEndsAt] = useState<number | null>(null)
   const left = useCountdown(endsAt, alertDone)
   const finished = endsAt !== null && left === 0
@@ -128,14 +125,14 @@ function CardioStep({ step, state, update }: { step: Extract<Step, { type: 'card
             setEndsAt(Date.now() + step.minutes * 60_000)
           }}
         >
-          Start {step.minutes} min timer
+          Start timer
         </button>
       ) : (
-        <div className="clock">{finished ? 'Time!' : formatClock(left)}</div>
+        <div className="clock">{finished ? 'Time' : formatClock(left)}</div>
       )}
 
-      <button type="button" className="btn btn-primary btn-block" onClick={() => update((s) => nextStep(s, dateKey()))}>
-        Done, next →
+      <button type="button" className="btn btn-primary btn-block btn-xl" onClick={() => update((s) => nextStep(s, dateKey()))}>
+        Next
       </button>
     </div>
   )
@@ -168,14 +165,12 @@ function StretchStep({ step, update }: { step: Extract<Step, { type: 'stretch' }
         </p>
       ) : (
         <>
-          {sides > 1 && <p className="muted center">{side === 0 ? 'First side' : 'Switch sides'}</p>}
+          {sides > 1 && <p className="muted center">{side === 0 ? 'Side 1' : 'Side 2'}</p>}
           <div className="clock">{formatClock(left)}</div>
         </>
       )}
 
-      {finished ? (
-        <p className="center muted">Done. Breathe out, move on when ready.</p>
-      ) : (
+      {!finished && (
         endsAt === null && (
           <button
             type="button"
@@ -185,13 +180,13 @@ function StretchStep({ step, update }: { step: Extract<Step, { type: 'stretch' }
               setEndsAt(Date.now() + seconds * 1000)
             }}
           >
-            Start {seconds}s hold
+            Start
           </button>
         )
       )}
 
-      <button type="button" className="btn btn-primary btn-block" onClick={() => update((s) => nextStep(s, dateKey()))}>
-        Done, next →
+      <button type="button" className="btn btn-primary btn-block btn-xl" onClick={() => update((s) => nextStep(s, dateKey()))}>
+        Next
       </button>
     </div>
   )
@@ -227,10 +222,6 @@ function StrengthStep({ step, state, update }: { step: Extract<Step, { type: 'st
           <span key={i} className={i < setIndex ? 'done' : i === setIndex ? 'now' : ''} />
         ))}
       </div>
-      <p className="muted center">
-        Set {setIndex + 1} of {step.sets}
-      </p>
-
       {def.kind === 'hold' ? (
         <HoldTimer seconds={load.seconds!} onDone={doneSet} />
       ) : (
@@ -242,7 +233,7 @@ function StrengthStep({ step, state, update }: { step: Extract<Step, { type: 'st
       {def.kind === 'weighted' && load.weight !== undefined && (
         <div className="center">
           <button type="button" className="weight-line" onClick={() => setEditWeight((v) => !v)}>
-            @ {formatWeight(def, load.weight)} <span className="muted small">✎</span>
+            {formatWeight(def, load.weight)} <span className="muted small">edit</span>
           </button>
           {editWeight && (
             <Stepper value={load.weight} step={def.step} min={def.min} suffix="kg"
@@ -253,7 +244,7 @@ function StrengthStep({ step, state, update }: { step: Extract<Step, { type: 'st
 
       {def.kind !== 'hold' && (
         <button type="button" className="btn btn-primary btn-block btn-xl" onClick={doneSet}>
-          Set done ✓
+          Done
         </button>
       )}
 
@@ -275,14 +266,11 @@ function FirstWeight({ start, step, min, perHand, reps, onPick }: {
   const [weight, setWeight] = useState(start)
   return (
     <div className="target first-weight">
-      <span className="tag">First time</span>
-      <p>
-        Pick a <strong>light</strong> weight you could lift about 15 times with good form. You'll do {reps} reps.
-        The app adjusts it from here.
-      </p>
+      <h2 className="center">Pick a light weight</h2>
+      <p className="muted center">One you could lift 15 times. You'll do {reps}.</p>
       <Stepper value={weight} step={step} min={min} suffix={perHand ? 'kg each hand' : 'kg'} onChange={setWeight} />
-      <button type="button" className="btn btn-primary btn-block" onClick={() => onPick(weight)}>
-        Use this weight
+      <button type="button" className="btn btn-primary btn-block btn-xl" onClick={() => onPick(weight)}>
+        Use {weight} kg
       </button>
     </div>
   )
@@ -302,11 +290,11 @@ function HoldTimer({ seconds, onDone }: { seconds: number; onDone: () => void })
       </p>
       {endsAt === null ? (
         <button type="button" className="btn btn-primary btn-block btn-xl" onClick={() => { unlockAudio(); setEndsAt(Date.now() + seconds * 1000) }}>
-          Start {seconds}s hold
+          Start
         </button>
       ) : (
         <button type="button" className="btn btn-ghost btn-block" onClick={() => { setEndsAt(null); onDone() }}>
-          Stop early
+          Stop
         </button>
       )}
     </>
@@ -328,28 +316,27 @@ function RestOverlay({ endsAt, next, onAdd, onClose }: { endsAt: number; next: s
           +15s
         </button>
         <button type="button" className="btn btn-primary" onClick={onClose}>
-          Skip rest
+          Go
         </button>
       </div>
     </div>
   )
 }
 
-const FEEDBACK: { fb: Feedback; label: string; hint: string }[] = [
-  { fb: 'hard', label: 'Too hard', hint: "Couldn't finish the reps, or form broke down" },
-  { fb: 'right', label: 'About right', hint: 'Last reps were hard, but clean' },
-  { fb: 'easy', label: 'Too easy', hint: 'Could have done many more' },
+const FEEDBACK: { fb: Feedback; label: string }[] = [
+  { fb: 'easy', label: 'Easy' },
+  { fb: 'right', label: 'Just right' },
+  { fb: 'hard', label: 'Too hard' },
 ]
 
 function FeedbackPicker({ onPick }: { onPick: (fb: Feedback) => void }) {
   return (
     <div className="target">
-      <h2 className="center">How did that feel?</h2>
+      <h2 className="center">How was it?</h2>
       <div className="feedback">
-        {FEEDBACK.map(({ fb, label, hint }) => (
+        {FEEDBACK.map(({ fb, label }) => (
           <button key={fb} type="button" className={`btn fb-${fb}`} onClick={() => onPick(fb)}>
-            <strong>{label}</strong>
-            <span className="small">{hint}</span>
+            {label}
           </button>
         ))}
       </div>
@@ -357,8 +344,8 @@ function FeedbackPicker({ onPick }: { onPick: (fb: Feedback) => void }) {
   )
 }
 
-// Alternatives for the current step that this gym has equipment for.
-function swapOptions(step: Step, missing: readonly EquipmentId[]): string[] {
+// Alternatives for the current step that can be done here.
+function swapOptions(step: Step, missing: readonly Need[]): string[] {
   const base = step.type === 'strength' ? step.baseId : step.exerciseId
   return [base, ...exercise(base).swaps, ...exercise(step.exerciseId).swaps].filter(
     (id, i, all) => id !== step.exerciseId && all.indexOf(id) === i && isAvailable(id, missing),
@@ -375,7 +362,7 @@ function SwapSheet({ step, options, onClose, onPick }: {
   const base = step.type === 'strength' ? step.baseId : step.exerciseId
 
   return (
-    <Sheet title="Swap exercise" onClose={onClose}>
+    <Sheet title="Swap" onClose={onClose}>
       <ul className="swap-list">
         {options.map((id) => (
           <li key={id}>
@@ -392,7 +379,7 @@ function SwapSheet({ step, options, onClose, onPick }: {
       {step.type === 'strength' && (
         <label className="check">
           <input type="checkbox" checked={always} onChange={(e) => setAlways(e.target.checked)} />
-          Always use the swap in future workouts
+          Always swap
         </label>
       )}
     </Sheet>

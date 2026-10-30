@@ -61,7 +61,7 @@ export function formatWeight(def: ExerciseDef, weight: number): string {
 export function targetSummary(def: ExerciseDef, load: Load, sets: number): string {
   switch (def.kind) {
     case 'weighted':
-      return `${sets} × ${load.reps}` + (load.weight === undefined ? ' · pick weight' : ` @ ${formatWeight(def, load.weight)}`)
+      return `${sets} × ${load.reps}` + (load.weight === undefined ? ', pick weight' : ` @ ${formatWeight(def, load.weight)}`)
     case 'bodyweight':
       return `${sets} × ${load.reps}`
     case 'hold':

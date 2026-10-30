@@ -1,37 +1,69 @@
 import { EXERCISES } from '../data/exercises'
-import { UPGRADE_AFTER_SESSIONS, UPGRADES, rotationFor, type Workout } from '../data/workouts'
-import type { EquipmentId } from '../data/equipment'
-import type { AppState, Minutes, Settings, Step } from './state'
+import { rotationFor, type Slot, type Workout } from '../data/workouts'
+import { ALL_NEEDS, type Need } from '../data/equipment'
+import type { AppState, Level, Place, Settings, Step } from './state'
 
-const WARMUP: Record<Minutes, number> = { 45: 8, 60: 10, 75: 10 }
-const FINISHER: Record<Minutes, number> = { 45: 8, 60: 12, 75: 20 }
-const CARDIO_DAY: Record<Minutes, number> = { 45: 25, 60: 35, 75: 45 }
-const FINISHER_ROTATION = ['Bicycling_Stationary', 'Elliptical_Trainer', 'Walking_Treadmill']
-// The stairmill is hard for beginners, so it joins the rotation after a few weeks.
-const STAIRMILL_AFTER_SESSIONS = 12
+// The difficulty ladder. More volume pays off over months, and most dropouts happen in
+// the first month. So everyone starts with fewer exercises and less cardio and climbs a
+// stage every 6 sessions; the level only sets where on the ladder you start.
+// Every exercise is 3 sets at every stage. Index = stage - 1.
+export const SESSIONS_PER_STAGE = 6
+export const MAX_STAGE = 4
+const SETS = 3
+const EXERCISE_COUNT = [4, 5, 6, 7]
+const STRETCH_COUNT = [4, 4, 5, 5]
+const WARMUP = [5, 8, 10, 10]
+const FINISHER = [10, 12, 15, 20]
+const CARDIO_DAY = [20, 25, 35, 45]
 
-// First sessions use 2 sets while the movements are new.
-export const setsFor = (sessionsDone: number) => (sessionsDone < 6 ? 2 : 3)
+export const LEVEL_START: Record<Level, number> = {
+  beginner: 0,
+  intermediate: 2 * SESSIONS_PER_STAGE,
+  advanced: 3 * SESSIONS_PER_STAGE,
+}
+// A break this long steps back one stage, so coming back feels doable.
+const BREAK_DAYS = 14
 
-// Cardio gets a notch harder every 6 sessions.
-export const cardioStage = (sessionsDone: number) => Math.floor(sessionsDone / 6)
+const GYM_FINISHERS = ['Bicycling_Stationary', 'Elliptical_Trainer', 'Walking_Treadmill']
+const HOME_FINISHERS = ['Star_Jump', 'Mountain_Climbers']
+const HOME_EASY_CARDIO = 'Step-up_with_Knee_Raise'
+
+export const stageFor = (progress: number) => Math.min(MAX_STAGE, 1 + Math.floor(progress / SESSIONS_PER_STAGE))
+
+// Cardio settings (incline, level, interval length) keep creeping up past stage 4.
+export const cardioStage = (progress: number) => Math.floor(progress / SESSIONS_PER_STAGE)
+
+// Ladder position for a session started on `today`, after any break.
+export function progressOn(state: AppState, today: string): number {
+  if (!state.lastDone) return state.progress
+  const days = (Date.parse(today) - Date.parse(state.lastDone)) / 86_400_000
+  return days >= BREAK_DAYS ? Math.max(0, state.progress - SESSIONS_PER_STAGE) : state.progress
+}
 
 export function nextWorkout(state: AppState, settings: Settings): Workout {
   const rotation = rotationFor(settings.days.length)
   return rotation[state.sessionsDone % rotation.length]
 }
 
-// The planned exercise for a slot, before any user swap.
-export function plannedId(slotId: string, sessionsDone: number): string {
-  return sessionsDone >= UPGRADE_AFTER_SESSIONS && UPGRADES[slotId] ? UPGRADES[slotId] : slotId
+// The planned exercise for a slot at this stage, before any user swap.
+export function plannedId(slot: Slot, stage: number): string {
+  if (stage <= 2 && slot.easy) return slot.easy
+  if (stage >= MAX_STAGE && slot.hard) return slot.hard
+  return slot.id
 }
 
-export function buildSteps(workout: Workout, state: AppState, settings: Settings): Step[] {
-  const { minutes } = settings
-  const n = state.sessionsDone
-  const sets = setsFor(n)
+// What isn't there: gym equipment the user unticked, or everything but the home kit.
+export function missingAt(place: Place, settings: Settings): Need[] {
+  if (place === 'home') return ALL_NEEDS.filter((n) => !(settings.homeKit as Need[]).includes(n))
+  return [...(settings.missing ?? []), 'bands']
+}
 
-  const missing = settings.missing ?? []
+export function buildSteps(workout: Workout, state: AppState, settings: Settings, place: Place): Step[] {
+  const n = state.sessionsDone
+  const progress = state.progress
+  const i = stageFor(progress) - 1
+  const missing = missingAt(place, settings)
+
   const pick = (id: string) => {
     const exerciseId = resolveAvailable(id, missing)
     return exerciseId === id ? { exerciseId } : { exerciseId, unavailable: id }
@@ -40,25 +72,35 @@ export function buildSteps(workout: Workout, state: AppState, settings: Settings
     type: 'cardio', role, minutes: mins, ...pick(id),
   })
 
-  const strength: Step[] = workout.slots
-    .filter((slot) => minutes > 45 || !slot.optional)
-    .map((slot) => {
-      const baseId = plannedId(slot.id, n)
-      return { type: 'strength', baseId, sets, ...pick(state.swaps[baseId] ?? baseId) }
-    })
+  // Different slots can fall back to the same exercise when equipment is missing.
+  const used = new Set<string>()
+  const strength: Extract<Step, { type: 'strength' }>[] = []
+  for (const slot of (place === 'home' ? workout.home : workout.slots).slice(0, EXERCISE_COUNT[i])) {
+    const baseId = plannedId(slot, i + 1)
+    const step = { type: 'strength' as const, baseId, sets: SETS, ...pick(state.swaps[baseId] ?? baseId) }
+    if (used.has(step.exerciseId)) continue
+    used.add(step.exerciseId)
+    strength.push(step)
+  }
 
   const stretches: Step[] = workout.stretches
-    .filter((slot) => minutes > 45 || !slot.optional)
+    .slice(0, STRETCH_COUNT[i])
     .map((slot) => ({ type: 'stretch', exerciseId: slot.id }))
 
+  let finishers = GYM_FINISHERS
+  if (place === 'home') finishers = i < 2 ? [HOME_EASY_CARDIO] : HOME_FINISHERS
+  // The stairmill is hard, so it joins the rotation from stage 3.
+  else if (i >= 2) finishers = [...GYM_FINISHERS, 'Step_Mill']
+  const warmupId = place === 'home' ? HOME_EASY_CARDIO : 'Walking_Treadmill'
+
   if (workout.cardioDay) {
-    return [cardio('Walking_Treadmill', 'main', CARDIO_DAY[minutes]), ...strength, ...stretches]
+    const mainId = place === 'home' ? finishers[n % finishers.length] : 'Walking_Treadmill'
+    return [cardio(mainId, 'main', CARDIO_DAY[i]), ...strength, ...stretches]
   }
-  const finishers = n >= STAIRMILL_AFTER_SESSIONS ? [...FINISHER_ROTATION, 'Step_Mill'] : FINISHER_ROTATION
   return [
-    cardio('Walking_Treadmill', 'warmup', WARMUP[minutes]),
+    cardio(warmupId, 'warmup', WARMUP[i]),
     ...strength,
-    cardio(finishers[n % finishers.length], 'finisher', FINISHER[minutes]),
+    cardio(finishers[n % finishers.length], 'finisher', FINISHER[i]),
     ...stretches,
   ]
 }
@@ -75,13 +117,13 @@ export function estimateMinutes(steps: Step[]): number {
   return Math.round(steps.reduce((sum, s) => sum + minutesFor(s), 0) / 5) * 5
 }
 
-export function isAvailable(id: string, missing: readonly EquipmentId[]): boolean {
+export function isAvailable(id: string, missing: readonly Need[]): boolean {
   return exercise(id).needs.every((n) => !missing.includes(n))
 }
 
-// The exercise itself if the gym has what it needs, otherwise the closest swap
+// The exercise itself if what it needs is there, otherwise the closest swap
 // that works (searching swaps, then their swaps). Keeps the original if nothing fits.
-export function resolveAvailable(id: string, missing: readonly EquipmentId[]): string {
+export function resolveAvailable(id: string, missing: readonly Need[]): string {
   const seen = new Set<string>()
   const queue = [id]
   while (queue.length > 0) {
